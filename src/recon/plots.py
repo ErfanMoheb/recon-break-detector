@@ -197,3 +197,65 @@ def daily_exceptions(
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     plt.close(fig)
+
+
+DRIFT_LABELS = {
+    "model": "Model: expected exposure (trained once)",
+    "counterparty_rule": "Counterparty rule, all history",
+    "counterparty_rule_recent": "Counterparty rule, last 20 days",
+    "desk_rules": "Desk rules",
+}
+
+
+def drift_comparison(pooled: dict, n_seeds: int, path: Path) -> None:
+    """Value cleared in the first 10 before and after the drift day, with and without drift."""
+    _style()
+    fig, axes = plt.subplots(1, 2, figsize=(9.0, 5.0), sharey=True)
+    titles = {"no_drift": "Control: no drift", "drift": "Two counterparties drift on day 100"}
+    offsets = dict(zip(DRIFT_LABELS, (-0.09, -0.03, 0.03, 0.09)))
+    for ax, scenario in zip(axes, ("no_drift", "drift")):
+        for name, label in DRIFT_LABELS.items():
+            color = STRATEGY_COLORS["counterparty_rule" if "rule_recent" in name else name]
+            recent = name == "counterparty_rule_recent"
+            xs, ys, lo, hi = [], [], [], []
+            for k, period in enumerate(("before", "after")):
+                v = pooled[scenario][period]["value_recall_at_k"][name]
+                xs.append(k + offsets[name])
+                ys.append(v["mean"] * 100)
+                lo.append(v["mean"] * 100 - v["ci95"][0] * 100)
+                hi.append(v["ci95"][1] * 100 - v["mean"] * 100)
+            ax.errorbar(
+                xs,
+                ys,
+                yerr=[lo, hi],
+                fmt="o",
+                ms=7,
+                lw=2.4 if name == "model" else 1.6,
+                ls=(0, (4, 2)) if recent else "-",
+                color=color,
+                ecolor=color,
+                elinewidth=1.2,
+                capsize=3,
+                markerfacecolor=SURFACE if recent else color,
+                markeredgecolor=color,
+                markeredgewidth=1.5,
+                label=label,
+            )
+        ax.set_xticks([0, 1], ["Days 80–99\n(before)", "Days 100–119\n(after)"])
+        ax.set_xlim(-0.4, 1.4)
+        ax.set_title(titles[scenario])
+    axes[0].set_ylabel("Real-break exposure cleared in the first 10 (%)")
+    axes[0].set_ylim(35, 85)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, ncol=2, loc="lower center", bbox_to_anchor=(0.5, 0.04), fontsize=9)
+    fig.text(
+        0.01,
+        0.01,
+        f"Mean over {n_seeds} datasets × 20 days per period; bars: 95% bootstrap intervals "
+        "over seed-days; synthetic data.",
+        color=INK_2,
+        fontsize=8,
+    )
+    fig.tight_layout(rect=(0, 0.14, 1, 1))
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
