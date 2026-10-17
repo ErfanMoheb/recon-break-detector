@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Test
+        run: pytest
+      - name: Reproduce headline
+        run: |
+          recon demo --skip-robustness --out /tmp/results --data /tmp/data
+          python - <<'PY'
+          import json
+          s = json.load(open("/tmp/results/metrics.json"))["triage"]["strategies"]
+          v = {k: s[k]["value_recall_at_k"]["mean"] for k in s if "value_recall_at_k" in s[k]}
+          print({k: round(x, 3) for k, x in v.items()})
+          assert abs(v["model"] - 0.725) < 0.03, v["model"]
+          assert abs(v["desk_rules"] - 0.508) < 0.005, v["desk_rules"]
+          assert v["model"] - v["desk_rules"] > 0.15
+          PY
