@@ -1,0 +1,4 @@
+date,dimension,key,count,baseline_median,robust_z
+2026-03-02,counterparty,CP03,54,2.5,16.0
+2026-06-04,counterparty,CP08,39,2.0,14.9
+2026-05-18,currency,GBP,34,0.0,34.0

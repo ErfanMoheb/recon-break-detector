@@ -1,0 +1,287 @@
+{
+  "matching": {
+    "pairs": 59464,
+    "pair_precision": 1.0,
+    "pair_recall": 0.9995629517565977,
+    "pairs_by_method": {
+      "reference": 57088,
+      "attributes": 2376
+    },
+    "real_breaks": 1847,
+    "break_recall": 1.0,
+    "break_type_accuracy": 0.9859231185706551,
+    "false_breaks_open_at_end": 0,
+    "by_type": {
+      "MISSING_EXTERNAL": {
+        "n": 640,
+        "detected": 640,
+        "correct_type": 640
+      },
+      "MISSING_INTERNAL": {
+        "n": 213,
+        "detected": 213,
+        "correct_type": 213
+      },
+      "QTY_MISMATCH": {
+        "n": 374,
+        "detected": 374,
+        "correct_type": 361
+      },
+      "AMOUNT_MISMATCH": {
+        "n": 304,
+        "detected": 304,
+        "correct_type": 291
+      },
+      "DUPLICATE_EXTERNAL": {
+        "n": 316,
+        "detected": 316,
+        "correct_type": 316
+      }
+    }
+  },
+  "model": {
+    "train_exceptions": 3453,
+    "test_exceptions": 1876,
+    "test_needs_action_rate": 0.34914712153518124,
+    "roc_auc": 0.8774330888834707,
+    "average_precision": 0.8528489020309794,
+    "missing_only_roc_auc": 0.7451386451386453,
+    "missing_only_needs_action_rate": 0.205078125
+  },
+  "triage": {
+    "capacity": 10,
+    "split_date": "2026-04-27",
+    "train_exceptions_end": "2026-04-22",
+    "strategies": {
+      "random": {
+        "days": 40,
+        "precision_at_k": {
+          "mean": 0.355,
+          "ci95": [
+            0.305,
+            0.40750000000000003
+          ]
+        },
+        "value_recall_at_k": {
+          "mean": 0.2291515608938454,
+          "ci95": [
+            0.17106685974127772,
+            0.2957531262205136
+          ]
+        },
+        "items_to_90pct_value": {
+          "mean": 39.1,
+          "ci95": [
+            35.89875,
+            42.675625
+          ]
+        }
+      },
+      "largest_exposure": {
+        "days": 40,
+        "precision_at_k": {
+          "mean": 0.30500000000000005,
+          "ci95": [
+            0.25993749999999993,
+            0.35
+          ]
+        },
+        "value_recall_at_k": {
+          "mean": 0.6045691782569024,
+          "ci95": [
+            0.5376303087334768,
+            0.6640136187675212
+          ]
+        },
+        "items_to_90pct_value": {
+          "mean": 24.525,
+          "ci95": [
+            21.875,
+            27.8
+          ]
+        }
+      },
+      "desk_rules": {
+        "days": 40,
+        "precision_at_k": {
+          "mean": 0.805,
+          "ci95": [
+            0.7425,
+            0.8600000000000001
+          ]
+        },
+        "value_recall_at_k": {
+          "mean": 0.5081861370262081,
+          "ci95": [
+            0.4374187795056096,
+            0.5748966422756091
+          ]
+        },
+        "items_to_90pct_value": {
+          "mean": 25.5,
+          "ci95": [
+            22.15,
+            29.625624999999996
+          ]
+        }
+      },
+      "counterparty_rule": {
+        "days": 40,
+        "precision_at_k": {
+          "mean": 0.5475,
+          "ci95": [
+            0.495,
+            0.6
+          ]
+        },
+        "value_recall_at_k": {
+          "mean": 0.7357882175392424,
+          "ci95": [
+            0.6817632378654842,
+            0.7834904522980194
+          ]
+        },
+        "items_to_90pct_value": {
+          "mean": 19.425,
+          "ci95": [
+            16.6,
+            22.675
+          ]
+        }
+      },
+      "model_probability": {
+        "days": 40,
+        "precision_at_k": {
+          "mean": 0.8574999999999999,
+          "ci95": [
+            0.8175000000000001,
+            0.8975
+          ]
+        },
+        "value_recall_at_k": {
+          "mean": 0.40870472866657737,
+          "ci95": [
+            0.3441173265617563,
+            0.4757797477996861
+          ]
+        },
+        "items_to_90pct_value": {
+          "mean": 28.3,
+          "ci95": [
+            25.049375,
+            31.801249999999992
+          ]
+        }
+      },
+      "model": {
+        "days": 40,
+        "precision_at_k": {
+          "mean": 0.5874999999999999,
+          "ci95": [
+            0.5375,
+            0.6399999999999999
+          ]
+        },
+        "value_recall_at_k": {
+          "mean": 0.7245037199050002,
+          "ci95": [
+            0.6642069184789966,
+            0.7791739921832764
+          ]
+        },
+        "items_to_90pct_value": {
+          "mean": 17.975,
+          "ci95": [
+            15.749375,
+            20.45
+          ]
+        }
+      }
+    },
+    "model_minus_other_value_recall": {
+      "random": {
+        "mean": 0.49535215901115476,
+        "ci95": [
+          0.41492575990744224,
+          0.5747858222112703
+        ],
+        "days_model_better": 39,
+        "days_equal": 0,
+        "days_other_better": 1
+      },
+      "largest_exposure": {
+        "mean": 0.11993454164809784,
+        "ci95": [
+          0.059700932953775085,
+          0.1752797799004213
+        ],
+        "days_model_better": 32,
+        "days_equal": 0,
+        "days_other_better": 8
+      },
+      "desk_rules": {
+        "mean": 0.21631758287879216,
+        "ci95": [
+          0.14387421542107925,
+          0.28868005758134835
+        ],
+        "days_model_better": 35,
+        "days_equal": 0,
+        "days_other_better": 5
+      },
+      "counterparty_rule": {
+        "mean": -0.01128449763424223,
+        "ci95": [
+          -0.057369888728859696,
+          0.028962359463131342
+        ],
+        "days_model_better": 20,
+        "days_equal": 4,
+        "days_other_better": 16
+      },
+      "model_probability": {
+        "mean": 0.31579899123842275,
+        "ci95": [
+          0.2415437677868054,
+          0.3875629816619946
+        ],
+        "days_model_better": 37,
+        "days_equal": 0,
+        "days_other_better": 3
+      }
+    }
+  },
+  "surveillance": {
+    "incidents": [
+      {
+        "day_index": 40,
+        "kind": "feed_delay",
+        "target": "CP03",
+        "share": 1.0,
+        "date": "2026-03-02",
+        "detected": true,
+        "robust_z": 16.0
+      },
+      {
+        "day_index": 95,
+        "kind": "price_feed",
+        "target": "GBP",
+        "share": 0.6,
+        "date": "2026-05-18",
+        "detected": true,
+        "robust_z": 34.0
+      },
+      {
+        "day_index": 108,
+        "kind": "feed_delay",
+        "target": "CP08",
+        "share": 1.0,
+        "date": "2026-06-04",
+        "detected": true,
+        "robust_z": 14.9
+      }
+    ],
+    "monitored_days": 100,
+    "false_alerts": 0
+  }
+}
