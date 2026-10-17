@@ -188,7 +188,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
 recon demo         # data, evaluation, figures, five-dataset check (about a minute)
-pytest             # 66 tests
+pytest             # 69 tests
 recon queue        # a typical held-out day's ranked queue with reasons
 recon drift        # the drift test: two counterparties change behaviour on day 100
 ```

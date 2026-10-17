@@ -177,7 +177,11 @@ def _late_rates_by_day(cps: pd.DataFrame, cfg: GeneratorConfig) -> np.ndarray:
     for ch in sorted(cfg.drift, key=lambda c: c.day_index):
         if ch.counterparty not in pos:
             raise ValueError(f"unknown counterparty in drift: {ch.counterparty}")
-        rates[max(ch.day_index, 0) :, pos[ch.counterparty]] = ch.late_rate
+        if not 0 <= ch.day_index < cfg.n_days:
+            raise ValueError(
+                f"drift day {ch.day_index} is outside the {cfg.n_days} generated trade days"
+            )
+        rates[ch.day_index :, pos[ch.counterparty]] = ch.late_rate
     return rates
 
 
@@ -392,8 +396,7 @@ def generate(cfg: GeneratorConfig | None = None) -> dict[str, pd.DataFrame | dic
     }
     if cfg.drift:
         meta["drift"] = [
-            {**asdict(ch), "date": all_days[min(ch.day_index, cfg.n_days - 1)].date().isoformat()}
-            for ch in cfg.drift
+            {**asdict(ch), "date": all_days[ch.day_index].date().isoformat()} for ch in cfg.drift
         ]
     return {
         "internal_book": pd.DataFrame(internal),

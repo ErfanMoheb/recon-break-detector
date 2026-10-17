@@ -7,6 +7,7 @@ from recon import drift as D
 from recon import generate as G
 from recon import schema as S
 from recon import triage as T
+from recon.cli import main
 from recon.match import reconcile
 from tests.conftest import SMALL
 
@@ -61,6 +62,23 @@ def test_drifted_counterparty_posts_late_more_often_after_the_drift_day(small_da
 def test_unknown_counterparty_is_rejected():
     with pytest.raises(ValueError, match="unknown counterparty"):
         G.generate(replace(SMALL, n_days=3, drift=(G.LateRateChange(1, "CP99", 0.1),)))
+
+
+@pytest.mark.parametrize("day", [-1, 3])
+def test_drift_day_outside_the_trade_days_is_rejected(day):
+    cp = G.counterparty_profile(SMALL)["counterparty"].iloc[0]
+    with pytest.raises(ValueError, match="outside the 3 generated trade days"):
+        G.generate(replace(SMALL, n_days=3, drift=(G.LateRateChange(day, cp, 0.1),)))
+
+
+def test_drift_rerun_drops_csvs_of_seeds_left_out(tmp_path, monkeypatch):
+    (tmp_path / "seed_4.csv").write_text("stale")
+    table = pd.DataFrame({"x": [1.0]})
+    monkeypatch.setattr(D, "run", lambda seeds: ({"pooled": {}}, {s: table for s in seeds}))
+    monkeypatch.setattr("recon.plots.drift_comparison", lambda *a, **k: None)
+    monkeypatch.setattr("recon.cli._md_table", lambda df: "")
+    main(["drift", "--out", str(tmp_path), "--seeds", "7"])
+    assert sorted(p.name for p in tmp_path.glob("seed_*.csv")) == ["seed_7.csv"]
 
 
 def test_drift_schedule_picks_one_busy_fast_and_one_slow_counterparty():

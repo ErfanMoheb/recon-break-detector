@@ -180,6 +180,8 @@ def main(argv: list[str] | None = None) -> None:
         out = Path(args.out)
         out.mkdir(parents=True, exist_ok=True)
         m, tables = D.run(args.seeds)
+        for stale in out.glob("seed_*.csv"):  # keep the folder to one run's seeds
+            stale.unlink()
         (out / "metrics.json").write_text(json.dumps(m, indent=2))
         for seed, t in tables.items():
             t.round(6).to_csv(out / f"seed_{seed}.csv", index=False)
