@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from . import drift as D
 from . import generate as G
 from . import plots
 from .evaluate import CAPACITY, TRAIN_DAYS, analyst_queue, evaluate, typical_day
@@ -124,6 +125,10 @@ def main(argv: list[str] | None = None) -> None:
     d.add_argument("--data", default="data")
     d.add_argument("--skip-robustness", action="store_true")
 
+    dr = sub.add_parser("drift", help="compare model and rules when counterparties drift")
+    dr.add_argument("--out", default="results/drift")
+    dr.add_argument("--seeds", type=int, nargs="+", default=list(ROBUSTNESS_SEEDS))
+
     args = ap.parse_args(argv)
 
     if args.cmd == "generate":
@@ -169,6 +174,27 @@ def main(argv: list[str] | None = None) -> None:
         )
         if not args.skip_robustness:
             print(_md_table(_robustness(out, ROBUSTNESS_SEEDS, TRAIN_DAYS, CAPACITY)))
+        print(f"results written to {out}/")
+
+    elif args.cmd == "drift":
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        m, tables = D.run(args.seeds)
+        for stale in out.glob("seed_*.csv"):  # keep the folder to one run's seeds
+            stale.unlink()
+        (out / "metrics.json").write_text(json.dumps(m, indent=2))
+        for seed, t in tables.items():
+            t.round(6).to_csv(out / f"seed_{seed}.csv", index=False)
+        plots.drift_comparison(m["pooled"], len(args.seeds), out / "drift_value_cleared.png")
+        rows = []
+        for scenario, entry in m["pooled"].items():
+            for period in D.PERIODS:
+                v = entry[period]["value_recall_at_k"]
+                rows.append(
+                    {"scenario": scenario, "period": period}
+                    | {k: f"{x['mean']:.1%}" for k, x in v.items()}
+                )
+        print(_md_table(pd.DataFrame(rows)))
         print(f"results written to {out}/")
 
 

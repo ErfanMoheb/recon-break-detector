@@ -12,7 +12,9 @@ The main finding is about the framing, not the model. A one-line rule that uses 
 counterparty history does about as well: 74% on this dataset, and within a few points of the
 gradient-boosted model on all five datasets tested. The gain comes from two choices: ranking by
 expected exposure instead of by type or size, and learning which counterparties post late. If I
-were shipping this, the rule would go first and the model would have to earn its place.
+were shipping this, the rule would go first and the model would have to earn its place. When
+two counterparties change behaviour part-way through, the model's lead grows to about 3 points,
+still not clearly above zero ([Under drift](#under-drift)).
 
 ![Share of real-break exposure cleared after k items, by ranking strategy](results/figures/value_cleared_by_k.png)
 
@@ -120,6 +122,63 @@ fall at month end, when slow-posting counterparties bunch up.
 A typical day's queue with its reasons is in [results/sample_queue.md](results/sample_queue.md).
 It shows the day whose model result is closest to the median.
 
+## Under drift
+
+The rule and the model both lean on how often each counterparty's missing items clear on their
+own. So what happens when a counterparty changes behaviour? In this test
+([drift.py](src/recon/drift.py)) two counterparties change on day 100, halfway through the
+held-out days. Both are picked by rule, so each dataset drifts its own pair:
+
+- the busiest counterparty outside the three slow posters starts posting late (rate 0.18, up
+  from 0.02–0.04);
+- the busiest of the three slow posters gets fast (rate 0.02, down from 0.12–0.20).
+
+The model is still trained once, on pre-drift days. A control run uses the same five datasets
+with no drift. Days 80–99 are identical in both runs. The table shows the share of at-risk
+value cleared in the first 10, averaged over 5 datasets × 20 days per period, with 95%
+bootstrap intervals over seed-days. Pooling five datasets puts the model at 69% before the
+drift, against 72% for the single dataset in Results.
+
+| Queue order | Days 80–99 (before) | Days 100–119, no drift | Days 100–119, drift |
+|---|---|---|---|
+| Model, expected exposure (trained once) | 69% (66–72) | 71% (68–75) | 67% (63–70) |
+| Counterparty rule, all history | 68% (64–72) | 69% (66–73) | 63% (59–68) |
+| Counterparty rule, last 20 business days | 67% (64–71) | 67% (63–71) | 64% (60–69) |
+| Desk rules | 49% (44–53) | 51% (46–56) | 50% (45–55) |
+
+**Model minus the all-history rule** (same days): +1.1 points before the drift (CI −1.8 to
++3.9), +1.9 after day 100 with no drift (CI −1.0 to +4.6), and +3.3 after the drift (CI −0.1 to
++6.5, model ahead on 59 of 100 seed-days and behind on 32). Against the 20-day rule after the
+drift it is +2.3 (CI −0.8 to +5.5). On the five datasets separately, model minus the
+all-history rule after the drift is +1.0, +6.1, −3.2, +8.4 and +4.0 points.
+
+**The model does not clearly beat the rule under drift.** Its lead grows from 1–2 points to
+about 3, but the interval still touches zero and the rule wins on one of the five datasets.
+Every ordering that uses counterparty history loses a few points. Desk rules use no history and
+do not move.
+
+**Why the model holds up a little better.** Almost all the damage comes from the counterparty
+that turns slow. After day 100 only 5% of its missing items are real breaks. The all-history rule
+still prices them at 20%, so its large late postings keep taking queue slots, and the 20-day rule
+gets down to 14%. The model was never retrained, yet it says 8%. One of its features counts
+each counterparty's missing items that day, and that count jumps as soon as the counterparty
+slows. The slow poster that turns fast matters much less, because most of its few remaining
+missing items still clear on their own.
+
+**A shorter memory is not a free fix.** The 20-day rule follows the new rate: by the last day
+it puts seed 7's newly slow counterparty at 0.89 against a true self-clear share of 0.91, where
+the all-history rule says 0.75. But it is noisier. With no drift it trails the all-history rule
+by 2.4 points after day 100, and the model beats it by 4.3 (CI +1.2 to +7.6).
+
+**What this changes.** I would still ship the rule first, but I would give it a same-day burst
+signal and monitor each counterparty's self-clear rate against its history. That is the part of
+the model that helped here. The test covers one kind of shift, designed by me.
+
+![Value cleared in the first 10 before and after two counterparties drift, with a no-drift control](results/drift/drift_value_cleared.png)
+
+`recon drift` (about a minute) writes [results/drift/metrics.json](results/drift/metrics.json),
+one daily CSV per dataset and the figure.
+
 ## Quick start
 
 ```bash
@@ -129,8 +188,9 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
 recon demo         # data, evaluation, figures, five-dataset check (about a minute)
-pytest             # 60 tests
+pytest             # 69 tests
 recon queue        # a typical held-out day's ranked queue with reasons
+recon drift        # the drift test: two counterparties change behaviour on day 100
 ```
 
 `recon demo` reproduces every number above. Its first line of output should read
@@ -184,7 +244,8 @@ York team) and month end.
   shows up as two missing items.
 - **Surveillance ignores seasonality.** Month ends can trigger alerts. On two of the five
   datasets, fewer than 3 in 4 alerts were real incidents, which misses the target in the brief.
-- **The model is trained once.** There is no retraining schedule or drift monitoring.
+- **The model is trained once.** There is no retraining schedule or drift monitoring. The
+  drift test covers one shift that I designed (two counterparties change late-posting rates).
 
 ## What I would measure in production
 
@@ -212,7 +273,9 @@ no proprietary data or code.
 | `src/recon/surveil.py` | Incident detection |
 | `src/recon/explain.py` | Reasons and the language-model check |
 | `src/recon/evaluate.py` | Evaluation against ground truth |
+| `src/recon/drift.py` | Drift test: model against rules when counterparties change |
 | `results/` | Metrics, figures and a sample queue produced by `recon demo` |
+| `results/drift/` | Drift test outputs produced by `recon drift` |
 | `docs/product_brief.md` | One-page product brief |
 | `tests/` | Matcher scenarios, leakage checks, explanation checks, end-to-end run |
 

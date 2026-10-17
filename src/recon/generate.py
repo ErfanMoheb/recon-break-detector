@@ -10,6 +10,7 @@ injected next to benign noise that a naive matcher would also flag: reference
 formatting differences, blank references, rounding inside tolerance, and late postings
 that resolve on their own a day or two later. Late-posting propensity depends on the
 counterparty, the market and month end, so a triage model has something real to learn.
+An optional drift schedule changes a counterparty's late-posting rate part-way through.
 
 Ground truth sits in ``truth_*`` columns and in ``meta.json``. The matcher drops those
 columns before it reads anything (see ``recon.io.observable``).
@@ -38,6 +39,15 @@ class Incident:
     share: float = 1.0
 
 
+@dataclass(frozen=True)
+class LateRateChange:
+    """From ``day_index`` on, ``counterparty`` posts late at ``late_rate`` instead."""
+
+    day_index: int
+    counterparty: str
+    late_rate: float
+
+
 DEFAULT_INCIDENTS = (
     Incident(40, S.FEED_DELAY, "CP03"),
     Incident(95, S.PRICE_FEED, "GBP", 0.6),
@@ -62,6 +72,7 @@ class GeneratorConfig:
     p_rounding_noise: float = 0.06
     p_blank_reference: float = 0.04
     incidents: tuple[Incident, ...] = field(default=DEFAULT_INCIDENTS)
+    drift: tuple[LateRateChange, ...] = ()
 
 
 _CCY_WEIGHTS = {"USD": 0.45, "EUR": 0.20, "GBP": 0.12, "JPY": 0.13, "HKD": 0.10}
@@ -148,6 +159,32 @@ def _build_universe(cfg: GeneratorConfig, rng: np.random.Generator) -> _Universe
     return _Universe(accounts, securities, counterparties)
 
 
+def counterparty_profile(cfg: GeneratorConfig | None = None) -> pd.DataFrame:
+    """Each counterparty's volume weight and base late-posting rate for this config.
+
+    The universe is drawn first from the seeded generator, so this rebuilds exactly the
+    counterparties ``generate(cfg)`` uses without generating any trades.
+    """
+    cfg = cfg or GeneratorConfig()
+    cps = _build_universe(cfg, np.random.default_rng(cfg.seed)).counterparties
+    return cps[["counterparty", "weight", "late_rate"]].copy()
+
+
+def _late_rates_by_day(cps: pd.DataFrame, cfg: GeneratorConfig) -> np.ndarray:
+    """Counterparty late-posting rates per trade day, shape (n_days, n_counterparties)."""
+    rates = np.tile(cps["late_rate"].to_numpy(), (cfg.n_days, 1))
+    pos = {cp: k for k, cp in enumerate(cps["counterparty"])}
+    for ch in sorted(cfg.drift, key=lambda c: c.day_index):
+        if ch.counterparty not in pos:
+            raise ValueError(f"unknown counterparty in drift: {ch.counterparty}")
+        if not 0 <= ch.day_index < cfg.n_days:
+            raise ValueError(
+                f"drift day {ch.day_index} is outside the {cfg.n_days} generated trade days"
+            )
+        rates[ch.day_index :, pos[ch.counterparty]] = ch.late_rate
+    return rates
+
+
 def _month_end_flags(days: pd.DatetimeIndex) -> np.ndarray:
     """True on the last two business days of each month."""
     month = days.to_period("M")
@@ -177,6 +214,7 @@ def generate(cfg: GeneratorConfig | None = None) -> dict[str, pd.DataFrame | dic
     sec_lot = np.array([S.MARKETS[c].lot for c in sec_ccy])
     sec_dec = np.array([S.MARKETS[c].decimals for c in sec_ccy])
     late_mult = np.array([_CCY_LATE_MULT[c] for c in sec_ccy])
+    cp_late_by_day = _late_rates_by_day(cps, cfg)
 
     internal, external = [], []
     trade_no, ext_no = 0, 0
@@ -201,7 +239,7 @@ def generate(cfg: GeneratorConfig | None = None) -> dict[str, pd.DataFrame | dic
         cp_err = cps["error_mult"].to_numpy()[c]
         p = np.column_stack(
             [
-                cps["late_rate"].to_numpy()[c] * late_mult[s] * (1.5 if month_end[d] else 1.0),
+                cp_late_by_day[d, c] * late_mult[s] * (1.5 if month_end[d] else 1.0),
                 acc["manual_rate"].to_numpy()[a],
                 cfg.p_missing_external * cp_err * acc["error_mult"].to_numpy()[a],
                 cfg.p_qty_mismatch * cp_err,
@@ -349,13 +387,17 @@ def generate(cfg: GeneratorConfig | None = None) -> dict[str, pd.DataFrame | dic
             )
 
     meta = {
-        "config": {k: v for k, v in asdict(cfg).items() if k != "incidents"},
+        "config": {k: v for k, v in asdict(cfg).items() if k not in ("incidents", "drift")},
         "incidents": [
             {**asdict(inc), "date": all_days[inc.day_index].date().isoformat()} for inc in incidents
         ],
         "trade_days": [d.date().isoformat() for d in all_days[: cfg.n_days]],
         "calendar": [d.date().isoformat() for d in all_days],
     }
+    if cfg.drift:
+        meta["drift"] = [
+            {**asdict(ch), "date": all_days[ch.day_index].date().isoformat()} for ch in cfg.drift
+        ]
     return {
         "internal_book": pd.DataFrame(internal),
         "custodian_statement": pd.DataFrame(external),

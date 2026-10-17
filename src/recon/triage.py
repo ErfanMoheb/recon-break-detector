@@ -8,7 +8,8 @@ P(needs action) x exposure in USD.
 
 History features use only outcomes an operations team could have observed: an exception
 counts towards history three business days after it was raised, by which time a late
-posting would have cleared. Nothing from the scored day's outcomes is used.
+posting would have cleared. Nothing from the scored day's outcomes is used. History is
+cumulative by default; ``history_window`` keeps only the most recent business days of it.
 """
 
 from __future__ import annotations
@@ -36,8 +37,14 @@ def observed_self_resolved(exc: pd.DataFrame) -> pd.Series:
     return pd.Series(np.asarray(gap) <= SETTLE_WINDOW_BDAYS, index=exc.index)
 
 
-def build_features(exc: pd.DataFrame, calendar: list[str]) -> pd.DataFrame:
-    """Feature matrix, one row per exception, indexed like ``exc``."""
+def build_features(
+    exc: pd.DataFrame, calendar: list[str], history_window: int | None = None
+) -> pd.DataFrame:
+    """Feature matrix, one row per exception, indexed like ``exc``.
+
+    With ``history_window`` set, the self-resolution rates use only outcomes from exceptions
+    raised in that many business days before the reveal cut-off, instead of all of history.
+    """
     day_idx = {d: k for k, d in enumerate(calendar)}
     t = exc["first_seen"].map(day_idx).to_numpy()
     cal = pd.to_datetime(pd.Series(calendar))
@@ -79,7 +86,7 @@ def build_features(exc: pd.DataFrame, calendar: list[str]) -> pd.DataFrame:
     total = [0, 0]
     rates = {k: np.zeros(len(exc)) for k in GROUP_KEYS}
     n_hist = np.zeros(len(exc))
-    revealed = 0
+    revealed = expired = 0
     miss = missing.to_numpy()
     keys = {k: exc[k].to_numpy() for k in GROUP_KEYS}
     for pos in order:
@@ -93,6 +100,20 @@ def build_features(exc: pd.DataFrame, calendar: list[str]) -> pd.DataFrame:
                     c[0] += outcome[r]
                     c[1] += 1
             revealed += 1
+        while (
+            history_window is not None
+            and expired < revealed
+            and t[order[expired]] <= t[pos] - HISTORY_DELAY_BDAYS - history_window
+        ):
+            r = order[expired]
+            if miss[r]:
+                total[0] -= outcome[r]
+                total[1] -= 1
+                for k in GROUP_KEYS:
+                    c = counts[k][keys[k][r]]
+                    c[0] -= outcome[r]
+                    c[1] -= 1
+            expired += 1
         prior = (total[0] + 1.0) / (total[1] + 2.0)
         for k in GROUP_KEYS:
             hits, n = counts[k][keys[k][pos]]
